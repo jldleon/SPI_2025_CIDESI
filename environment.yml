@@ -1,0 +1,14 @@
+name: spi_cidesi
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pytorch
+  - torchaudio
+  - torchvision
+  - tqdm
+  - pip:
+    - transformers
+    
