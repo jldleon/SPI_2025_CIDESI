@@ -1,0 +1,48 @@
+{
+    "vehicles": {
+      "keywords": [
+        { "car": 100 },
+        { "bicycle": 90 },
+        { "airplane": 85 },
+        { "bus": 80 },
+        { "motorcycle": 75 }
+      ]
+    },
+    "animals": {
+      "keywords": [
+        { "dog": 100 },
+        { "cat": 90 },
+        { "elephant": 85 },
+        { "zebra": 80 },
+        { "goldfish": 75 }
+      ]
+    },
+    "furniture": {
+      "keywords": [
+        { "chair": 100 },
+        { "table": 90 },
+        { "sofa": 85 },
+        { "lamp": 80 },
+        { "bed": 75 }
+      ]
+    },
+    "nature": {
+      "keywords": [
+        { "tree": 100 },
+        { "mountain": 90 },
+        { "river": 85 },
+        { "forest": 80 },
+        { "sea": 75 }
+      ]
+    },
+    "electronics": {
+      "keywords": [
+        { "laptop": 100 },
+        { "camera": 90 },
+        { "cellphone": 85 },
+        { "television": 80 },
+        { "keyboard": 75 }
+      ]
+    }
+  }
+  
