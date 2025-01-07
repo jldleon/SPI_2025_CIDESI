@@ -111,8 +111,7 @@ def generate_images(json_file, model, LLM_model, ckpt_number = 4):
     total_images_generated_counter = 0
     for concepto, prompts in data:
         for i, prompt in enumerate(prompts):
-            save_name = f"{concepto}_{prompt}_{i+1}.png"
-            save_name = os.path.join("SPI_2025_CIDESI", "experiments", f"experimento_{LLM_model}_{model}", "imagenes" )
+            save_name = os.path.join("SPI_2025_CIDESI", "experiments", f"experimento_{LLM_model}_{model}", "imagenes", f"{concepto}_{prompt}_{i+1}.png" )
             if model == "SDXL":
                 if pipe is None:
                     load_model_SDXL(ckpt_number)
