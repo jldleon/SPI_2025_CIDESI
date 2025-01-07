@@ -2,6 +2,7 @@ from transformers import GPT2LMHeadModel, GPT2Tokenizer
 import json
 import os 
 from tqdm import tqdm
+from argparse import ArgumentParser
 
 # Load the tokenizer
 tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
@@ -25,11 +26,11 @@ def generate_prompt(in_promt):
     attention_mask = input_ids.ne(tokenizer.pad_token_id).long()
 
     # Generate text
-    output = model.generate(
+    outputs = model.generate(
         input_ids,
         attention_mask=attention_mask,
         max_length=200,  # Maximum length of generated text
-        num_return_sequences=1,  # Number of generated sequences
+        num_return_sequences=3,  # Number of generated sequences
         no_repeat_ngram_size=2,  # Avoid repetition
         top_k=50,  # Filter top-k tokens
         top_p=0.95,  # Nucleus sampling
@@ -38,7 +39,7 @@ def generate_prompt(in_promt):
     )
 
     # Decode and print generated text
-    generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
+    generated_text = [tokenizer.decode(output, skip_special_tokens=True)[50:] for output in outputs]
     return generated_text 
 
 def prompt_refinement(input_dir):
@@ -56,7 +57,7 @@ def prompt_refinement(input_dir):
         key_words = ", ".join(key_words_list)
 
         in_promt = "create a coherent description of a scene with the words: " + key_words
-        refine_prompts[concept] = generate_prompt(in_promt)[50:]
+        refine_prompts[concept] = generate_prompt(in_promt)
         load_bar.update(1)
     load_bar.close()
     return refine_prompts
@@ -67,12 +68,18 @@ def save_prompts(out_dirs, data):
     with open(out_file, "w") as file:
         json.dump(data, file, indent=4)
     print(f"data store in {out_file}")
-    
 
 if __name__ == "__main__":
+    # Set up command line argument parser
+    parser = ArgumentParser(description="Prompt refinement script")
+    parser.add_argument("--in_dir", type=str)
+    parser.add_argument("--out_dir", type=str)
+    args = parser.parse_args()
 
-    input_dir = "../data/keywords.json"
-    output_dir = "../experiments/experiment_gpt2_sdxl"
+    #input_dir = "../data/keywords.json"
+    #output_dir = "../experiments/experiment_gpt2_sdxl"
+    input_dir = args.in_dir
+    output_dir = args.out_dir
     os.makedirs(output_dir, exist_ok=True)
 
     data = prompt_refinement(input_dir)
