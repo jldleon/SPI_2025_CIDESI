@@ -1,47 +1,72 @@
 {
-    "vehicles": {
+    "mermaid": {
       "keywords": [
-        { "car": 100 },
-        { "bicycle": 90 },
-        { "airplane": 85 },
-        { "bus": 80 },
-        { "motorcycle": 75 }
+        { "fish": 100 },
+        { "woman": 90 },
+        { "sea": 85 }
       ]
     },
-    "animals": {
+    "spaceship": {
       "keywords": [
-        { "dog": 100 },
-        { "cat": 90 },
-        { "elephant": 85 },
-        { "zebra": 80 },
-        { "goldfish": 75 }
+        { "airplane": 100 },
+        { "rocket": 95 },
+        { "star": 85 }
       ]
     },
-    "furniture": {
-      "keywords": [
-        { "chair": 100 },
-        { "table": 90 },
-        { "sofa": 85 },
-        { "lamp": 80 },
-        { "bed": 75 }
-      ]
-    },
-    "nature": {
+    "garden": {
       "keywords": [
         { "tree": 100 },
-        { "mountain": 90 },
-        { "river": 85 },
-        { "forest": 80 },
-        { "sea": 75 }
+        { "flower": 90 },
+        { "bench": 85 }
       ]
     },
-    "electronics": {
+    "jungle": {
       "keywords": [
-        { "laptop": 100 },
-        { "camera": 90 },
-        { "cellphone": 85 },
-        { "television": 80 },
-        { "keyboard": 75 }
+        { "tiger": 100 },
+        { "tree": 90 },
+        { "river": 85 }
+      ]
+    },
+    "cityscape": {
+      "keywords": [
+        { "building": 100 },
+        { "street": 90 },
+        { "light": 85 }
+      ]
+    },
+    "ocean": {
+      "keywords": [
+        { "wave": 100 },
+        { "fish": 90 },
+        { "blue": 85 }
+      ]
+    },
+    "robot": {
+      "keywords": [
+        { "machine": 100 },
+        { "human": 90 },
+        { "intelligence": 85 }
+      ]
+    },
+    "castle": {
+      "keywords": [
+        { "stone": 100 },
+        { "tower": 90 },
+        { "knight": 85 }
+      ]
+    },
+    "forest": {
+      "keywords": [
+        { "tree": 100 },
+        { "moss": 90 },
+        { "deer": 85 }
+      ]
+    },
+    "desert": {
+      "keywords": [
+        { "sand": 100 },
+        { "cactus": 90 },
+        { "sun": 85 }
       ]
     }
   }
