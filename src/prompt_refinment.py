@@ -71,8 +71,8 @@ def save_prompts(out_dirs, data):
 
 if __name__ == "__main__":
 
-    input_dir = "data/keywords.json"
-    output_dir = "experiments/experiment_gpt2_sdxl"
+    input_dir = "../data/keywords.json"
+    output_dir = "../experiments/experiment_gpt2_sdxl"
     os.makedirs(output_dir, exist_ok=True)
 
     data = prompt_refinement(input_dir)
