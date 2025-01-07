@@ -9,7 +9,7 @@ model = GPT2LMHeadModel.from_pretrained("gpt2")
 # Input prompt
 input_text = """create a coherent description of a scene with the words: sea, woman, fish 
 exaples:
-1. a mermaid swimming in the sea. """
+1. a mermaid swimming in the sea, """
 
 # Encode input text
 input_ids = tokenizer.encode(input_text, return_tensors="pt")
