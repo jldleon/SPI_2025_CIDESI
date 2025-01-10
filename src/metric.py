@@ -7,6 +7,9 @@ from PIL import Image
 from transformers import AutoImageProcessor, AutoModelForImageClassification
 from sentence_transformers import SentenceTransformer
 
+# For the test
+import requests 
+
 class CMM_MobileNet:
     def __init__(self) -> None:
         self.preprocessor = AutoImageProcessor.from_pretrained("google/mobilenet_v2_1.0_224")
@@ -25,13 +28,6 @@ class CMM_MobileNet:
         "substring" : lambda k_ij, clss: k_ij in clss,
         "subword" : lambda k_ij, clss: re.compile(f".*(^|\s){k_ij}($|\s|,).*").match(clss) is not None
         }
-
-    def print_calc_vars(self):
-        print( "phi_class: ", self.calc_vals["phi_class"] )
-        print( "phi:\t", self.calc_vals["phi"] )
-        print( "m:\t", mm:=self.calc_vals["m"], "\tNormalize: ", mm/mm.norm(p=2) )
-        print( "w_a:\t", self.calc_vals["w_a"] )
-        print( "c_a:\t", self.calc_vals["c_a"] )
     
     def _semantic_filter(self, kwd:str, classes:list[str], n:int|float) -> list[str]:
         """Selects the most similar words from classes to kwd, according to n (int) higher scores or those above a threshold n(float)"""
@@ -96,7 +92,7 @@ class CMM_MobileNet:
         return (weight_adhesion, class_adhesion)
 
     def calculate(self, kw:dict[str:int], image:Image.Image,
-                metric_variant:Literal["multiplicative", "similitude", "both"]="similitude",
+                metric_variant:Literal["multiplicative", "similitude", "average", "all"]="average",
                 filter_fn:Literal["all","substring","subword"]|function=None,
                 semantic_selection:int|float=0, background_class:bool=False ) -> torch.Tensor|tuple[torch.Tensor]:
         """
@@ -116,7 +112,7 @@ class CMM_MobileNet:
             
             - Return: If 'metric_variant'!='both' metric value as tensor, otherwhise, tuple with both values.
         """
-        assert metric_variant in ["multiplicative", "similitude", "both"], "Bad metric variant"
+        assert metric_variant in ["multiplicative", "similitude", "average", "all"], "Bad metric variant"
 
         inputs = self.preprocessor(images=image, return_tensors="pt")
         outputs = self.classifier(**inputs)
@@ -124,17 +120,23 @@ class CMM_MobileNet:
         self.calc_vals["logits"] = logits
         filter_fn = CMM_MobileNet.base_filters[filter_fn] if type(filter_fn)==str else filter_fn
         w_a, c_a = self._calculate_adhesions( kw, logits, filter_fn , semantic_selection, background_class )
-        mcmm = w_a*c_a
-        scmm = (w_a+c_a)/torch.sqrt( 2*( w_a**2 + c_a**2 ) )
-        #scmm = self._cosine_sim( torch.Tensor( [w_a, c_a] ), torch.Tensor([1,1]) )
-        if metric_variant=="multiplicative":
-            return mcmm
-        elif metric_variant=="similitude":
-            return scmm
-        return (mcmm, scmm)
+        metric = {
+            "multiplicative" : w_a*c_a, # mcmm
+            "similitude" : (w_a+c_a)/torch.sqrt( 2*( w_a**2 + c_a**2 ) ), # scmm
+            "average" : (w_a+c_a)/2, # acmm
+        }
+        metric["all"] = tuple(metric.values())
+        return metric[metric_variant]
     
 
 if __name__=="__main__":
     # Intended to test correct construction of CMM_MobileNet object
     # and to give an example of execution
     cmm = CMM_MobileNet()
+    url_wolf = "https://images.fineartamerica.com/images-medium-large-5/grey-wolves-playing-william-ervinscience-photo-library.jpg"
+    img_wolf = Image.open(requests.get(url_wolf, stream=True).raw)
+    kw = {"wolf":100, "snow":20}
+    mcmm, scmm, acmm = cmm.calculate( kw, img_wolf, "all", "all", True, False )
+    print( "mcmm: ", mcmm )
+    print( "scmm: ", scmm )
+    print( "acmm: ", acmm )
