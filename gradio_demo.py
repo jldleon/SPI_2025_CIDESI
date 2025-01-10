@@ -1,12 +1,14 @@
 import json
-import PIL.Image
-import torch, PIL
+import PIL.Image as Image
+import torch
 import gradio as gr
+import matplotlib.pyplot as plt
 from argparse import Namespace
 
+from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline
+
 from src import init_model, prompt_refinement, save_prompts
-from src import load_model_SDXL, generate_image_SDXL
-from src import load_model_stable_diffusion, generate_image_stable_diffusion, pipe
+from src import load_model_SDXL, load_model_stable_diffusion
 from src import CMM_MobileNet
 
 TMP_DIR = "./gradio_tmp"
@@ -19,24 +21,25 @@ IMGS_GENAI = [ "SDXL", "SD2" ] # "stabilityai/stable-diffusion-2-1" - "stability
 CKPT_NUM_SDXL = 4
 CKPT_NUM_SD2 = 4
 
-DEVICE_SELECTOR = False
+DEVICE_SELECTOR = True
 
 
-use_cuda = None
 vars = Namespace()
+vars.cuda_id = None
 vars.kw = None
 vars.prompts = None
+vars.pipe = None
 model_llm, tokenizer_llm = None, None
 cmm_metric:CMM_MobileNet = None
 
 
 def cuda_select( device_dict:dict[str:int], device_name:str ):
     # device_dict -> { device_name:int|None }
-    use_cuda = device_dict[ device_name ]
+    vars.cuda_id = device_dict[ device_name ]
     new_drop = gr.Dropdown(info="")
-    if use_cuda!=None:
-        free, total = torch.cuda.mem_get_info( use_cuda )
-        new_drop = gr.Dropdown( info=f"Free memory {round( free/total, 2)} %" )
+    if vars.cuda_id!=None:
+        free, total = torch.cuda.mem_get_info( vars.cuda_id )
+        new_drop = gr.Dropdown( info=f"Free memory {round( free/total, 2)} % of {round(total/1024**3, 3)} GB" )
     return new_drop
 
 def process_kw(kw_str:str): # gradio_tmp
@@ -45,33 +48,44 @@ def process_kw(kw_str:str): # gradio_tmp
     with open(TEMP_JSON_KW, "w") as outfile: json.dump(kw_json, outfile)
     # Make prompt
     vars.prompts = prompt_refinement(TEMP_JSON_KW, model_llm, tokenizer_llm)
-    new_prompt_outs = [ gr.TextArea(prompt) for prompt in vars.prompts['concept'] ]
-    new_prompt_column = [ gr.Column( visible=True ) ]
-    return new_prompt_outs + new_prompt_column
+    new_prompt_outs = [ gr.TextArea(prompt, placeholder=None) for prompt in vars.prompts['concept'] ]
+    #new_prompt_column = gr.Column( visible=True )
+    new_prompt_slct_row = gr.Row(visible=True)
+    new_device_row = gr.Row( visible=DEVICE_SELECTOR )
+    new_img_row = gr.Row(visible=True)
+    return new_prompt_outs + [new_prompt_slct_row, new_device_row, new_img_row]
 
-def generate_img( promt_idx:int, model_genai_name:str, model_llm_name:str ):
+def save_img_tensor( tensor:torch.Tensor, save_dir:str ) -> None:
+    fig, ax = plt.subplots()
+    img = ax.imshow(tensor.numpy())
+    ax.axis("off")
+    plt.savefig(save_dir, bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+
+def generate_img( promt_idx:int, model_genai_name:str):
     #select_prompt = { 'concept': [ prompts['concept'][promt_idx] ] }
-    #save_prompts( TEMP_JSON_PRMT, select_prompt) # DEP
-    prompt = vars.prompts['concept'][promt_idx]
+    #save_prompts( TEMP_JSON_PRMT, select_prompt) # DEP 
+    prompt = vars.prompts['concept'][promt_idx-1]
     if model_genai_name == "SDXL":
-        if pipe is None:
-            load_model_SDXL(CKPT_NUM_SDXL)
-        generate_image_SDXL(prompt, IMG_PATH, CKPT_NUM_SDXL)
-        total_images_generated_counter += 1
+        if vars.pipe is None or not isinstance(vars.pipe, StableDiffusionXLPipeline):
+            vars.pipe = load_model_SDXL(CKPT_NUM_SDXL, False)
+        #generate_image_SDXL(prompt, IMG_PATH, CKPT_NUM_SDXL)
     elif model_genai_name == "SD2":
-        if pipe is None:
-            load_model_stable_diffusion(CKPT_NUM_SD2)
-        generate_image_stable_diffusion(prompt, IMG_PATH, CKPT_NUM_SD2)
-    gen_img = PIL.Image.open( IMG_PATH )
+        if vars.pipe is None or not isinstance(vars.pipe, StableDiffusionPipeline):
+            vars.pipe = load_model_stable_diffusion(CKPT_NUM_SD2, False)
+        #generate_image_stable_diffusion(prompt, IMG_PATH, CKPT_NUM_SD2)
+    vars.pipe.to( f"cuda:{vars.cuda_id}" if vars.cuda_id is not None else "cpu")
+    img_gen = vars.pipe(prompt, num_inference_steps=CKPT_NUM_SDXL, guidance_scale=0).images[0]
+    save_img_tensor( img_gen, IMG_PATH )
+    gen_img = Image.open( IMG_PATH )
 
     mcmm, scmm, acmm = cmm_metric.calculate( vars.kw, gen_img, "all", "all", 3, False )
-    metrics_str = f"Weight adhesion: { cmm_metric.calc_vals['w_a'] }\nClass adhesion: {cmm_metric.calc_vals['w_a'] }\n"
-    metrics_str += f"MCMM: {mcmm}\nSCMM: {scmm}\nACMM: {acmm}"
+    metrics_str = f"Weight adhesion:\t{ cmm_metric.calc_vals['w_a'] }\nClass adhesion:\t{cmm_metric.calc_vals['w_a'] }\n"
+    metrics_str += f"\tMultiplicative-CMM: {mcmm}\nSimilitude-CMM: {scmm}\nAveage-CMM: {acmm}"
 
     new_img = gr.Image( gen_img )
     new_metrics = gr.TextArea( metrics_str )
-    new_row = gr.Row(visible=True)
-    return [ new_img, new_metrics, new_row ]
+    return [ new_img, new_metrics ]
 
 if __name__=="__main__":
 
@@ -94,13 +108,13 @@ if __name__=="__main__":
                     llm_selector = gr.Dropdown( PROMPT_LMS, value=PROMPT_LMS[0], label="LLM for prompt", visible=False )
                     get_prompt_btn = gr.Button( "Generate prompts" )
             with gr.Row():
-                with gr.Column(visible=False) as prompt_column:
+                with gr.Column(visible=True) as prompt_column:
                     with gr.Row(): # Column gets 3 textAreas horizotaly, but is too much space
-                        prompt_out_1 = gr.TextArea( label="Prompt 1", interactive=False)
-                        prompt_out_2 = gr.TextArea( label="Prompt 2", interactive=False)
-                        prompt_out_3 = gr.TextArea( label="Prompt 3", interactive=False)
+                        prompt_out_1 = gr.TextArea( label="Prompt 1", lines=2, placeholder="No prompt", interactive=False)
+                        prompt_out_2 = gr.TextArea( label="Prompt 2", lines=2, placeholder="No prompt", interactive=False)
+                        prompt_out_3 = gr.TextArea( label="Prompt 3", lines=2, placeholder="No prompt", interactive=False)
                     prompt_outs = [ prompt_out_1, prompt_out_2, prompt_out_3 ]
-                    with gr.Row():
+                    with gr.Row(visible=False) as prompt_slct_row:
                         prompt_selector = gr.Dropdown( [1,2,3], value=1, label="Generation prompt" )
                         genai_selector = gr.Dropdown( IMGS_GENAI, value=IMGS_GENAI[0], label="Model for image generation" )
                         gen_img_btn = gr.Button( "Generate" )
@@ -114,13 +128,13 @@ if __name__=="__main__":
 
         # Device selector
         with gr.Blocks() as device_selector:
-            with gr.Row( visible=DEVICE_SELECTOR ):
+            with gr.Row( visible=False ) as device_row:
                 dropdown_devices = gr.Dropdown( opts:=(list(devs.keys()) ), value=opts[0], label="Device", interactive=True )
 
         # ------ Bindings ------
         dropdown_devices.select( lambda x: cuda_select(devs, x), inputs=dropdown_devices, outputs=dropdown_devices )
-        get_prompt_btn.click( process_kw, inputs=kw_in, outputs= prompt_outs+[prompt_column] )
-        gen_img_btn.click( generate_img, inputs=[prompt_selector, genai_selector, llm_selector],
-                          outputs=[ img_1, metrics_1, image_row ] )
+        get_prompt_btn.click( process_kw, inputs=kw_in, 
+                             outputs = prompt_outs + [prompt_slct_row, image_row, device_row] )
+        gen_img_btn.click( generate_img, inputs=[prompt_selector, genai_selector], outputs=[ img_1, metrics_1 ] )
 
-    demo.launch( share=False )
+    demo.launch( share=True )
