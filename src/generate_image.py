@@ -28,16 +28,15 @@ from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
 
 pipe = None
 
-
 # PARA EL MODELO SDXL-Lightning
-def load_model_SDXL(ckpt_number = 4):
+def load_model_SDXL(ckpt_number = 4, use_cuda:bool=True):
 
     base = "stabilityai/stable-diffusion-xl-base-1.0"
     repo = "ByteDance/SDXL-Lightning"
     ckpt = f"sdxl_lightning_{ckpt_number}step_unet.safetensors" # Use the correct ckpt for your step setting!
 
     # we check for cuda availability
-    if cuda.is_available():
+    if cuda.is_available() and use_cuda:
         device_ = "cuda"
     else:
         device_ = "cpu"
@@ -48,7 +47,7 @@ def load_model_SDXL(ckpt_number = 4):
 
         # Ensure sampler uses "trailing" timesteps.
     pipe.scheduler = EulerDiscreteScheduler.from_config(pipe.scheduler.config, timestep_spacing="trailing")
-
+    return pipe
 
 
 def generate_image_SDXL(prompt, save_name, ckpt_number = 4):
@@ -66,14 +65,15 @@ def generate_image_SDXL(prompt, save_name, ckpt_number = 4):
 
 
 # PARA EL MODELO Stable Diffusion 2.1
-def load_model_stable_diffusion(ckpt_number = 4):
+def load_model_stable_diffusion(ckpt_number = 4, use_cuda:int=True):
     model_id = "stabilityai/stable-diffusion-2-1"
     pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
     pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
-    if cuda.is_available():
+    if cuda.is_available() and use_cuda:
         pipe = pipe.to("cuda")
     else:
         pipe = pipe.to("cpu")
+    return pipe
 
 def generate_image_stable_diffusion(prompt, save_name, ckpt_number = 4):
     fig, ax = plt.subplots()
