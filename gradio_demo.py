@@ -4,6 +4,7 @@ import torch
 import gradio as gr
 import matplotlib.pyplot as plt
 from argparse import Namespace
+from time import sleep
 
 from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline
 
@@ -22,6 +23,11 @@ CKPT_NUM_SDXL = 4
 CKPT_NUM_SD2 = 4
 
 DEVICE_SELECTOR = True
+SIMULATE_GEN = True
+FAKE_OPTS = [ f"{k}_{i+2}" for k in ["castle", "cityscape", "desert", "forest",
+                                     "garden", "jungle", "mermaid", "ocean", "robot",
+                                     "spaceship"] 
+             for i in range(3) ]
 
 
 vars = Namespace()
@@ -50,10 +56,10 @@ def process_kw(kw_str:str): # gradio_tmp
     vars.prompts = prompt_refinement(TEMP_JSON_KW, model_llm, tokenizer_llm)
     new_prompt_outs = [ gr.TextArea(prompt, placeholder=None) for prompt in vars.prompts['concept'] ]
     #new_prompt_column = gr.Column( visible=True )
-    new_prompt_slct_row = gr.Row(visible=True)
+    new_prompt_slct_col = gr.Row(visible=True)
     new_device_row = gr.Row( visible=DEVICE_SELECTOR )
     new_img_row = gr.Row(visible=True)
-    return new_prompt_outs + [new_prompt_slct_row, new_device_row, new_img_row]
+    return new_prompt_outs + [new_prompt_slct_col, new_device_row, new_img_row]
 
 def save_img_tensor( tensor:torch.Tensor, save_dir:str ) -> None:
     fig, ax = plt.subplots()
@@ -62,9 +68,9 @@ def save_img_tensor( tensor:torch.Tensor, save_dir:str ) -> None:
     plt.savefig(save_dir, bbox_inches='tight', pad_inches=0)
     plt.close(fig)
 
-def generate_img( promt_idx:int, model_genai_name:str):
+def generate_img( promt_idx:int, model_genai_name:str, model_llm:str ):
     #select_prompt = { 'concept': [ prompts['concept'][promt_idx] ] }
-    #save_prompts( TEMP_JSON_PRMT, select_prompt) # DEP 
+    #save_prompts( TEMP_JSON_PRMT, select_prompt) # DEP
     prompt = vars.prompts['concept'][promt_idx-1]
     if model_genai_name == "SDXL":
         if vars.pipe is None or not isinstance(vars.pipe, StableDiffusionXLPipeline):
@@ -80,8 +86,24 @@ def generate_img( promt_idx:int, model_genai_name:str):
     gen_img = Image.open( IMG_PATH )
 
     mcmm, scmm, acmm = cmm_metric.calculate( vars.kw, gen_img, "all", "all", 3, False )
-    metrics_str = f"Weight adhesion:\t{ cmm_metric.calc_vals['w_a'] }\nClass adhesion:\t{cmm_metric.calc_vals['w_a'] }\n"
-    metrics_str += f"\tMultiplicative-CMM: {mcmm}\nSimilitude-CMM: {scmm}\nAveage-CMM: {acmm}"
+    metrics_str = f"Weight adhesion:\t{ cmm_metric.calc_vals['w_a'] }\nClass adhesion:\t\t{cmm_metric.calc_vals['c_a'] }\n"
+    metrics_str += f"\nM-CMM:\t{mcmm}\nS-CMM:\t{scmm}\nA-CMM:\t{acmm}"
+
+    new_img = gr.Image( gen_img )
+    new_metrics = gr.TextArea( metrics_str )
+    return [ new_img, new_metrics ]
+
+def simulate_generation( image_name:int, model_genai_name:str, model_llm_name:str ):
+    if model_genai_name == "SDXL":
+        sleep(5)
+    elif model_genai_name == "SD2":    
+        sleep(20)
+    fake_img = f"./experiments/experiment_{model_llm_name}_{model_genai_name.lower()}/images/{image_name}.png"
+    gen_img = Image.open( fake_img ).convert("RGB")
+
+    mcmm, scmm, acmm = cmm_metric.calculate( vars.kw, gen_img, "all", "all", 3, False )
+    metrics_str = f"Weight adhesion:\t{ cmm_metric.calc_vals['w_a'] }\nClass adhesion:\t\t{cmm_metric.calc_vals['c_a'] }\n"
+    metrics_str += f"\nM-CMM:\t{mcmm}\nS-CMM:\t{scmm}\nA-CMM:\t{acmm}"
 
     new_img = gr.Image( gen_img )
     new_metrics = gr.TextArea( metrics_str )
@@ -114,9 +136,11 @@ if __name__=="__main__":
                         prompt_out_2 = gr.TextArea( label="Prompt 2", lines=2, placeholder="No prompt", interactive=False)
                         prompt_out_3 = gr.TextArea( label="Prompt 3", lines=2, placeholder="No prompt", interactive=False)
                     prompt_outs = [ prompt_out_1, prompt_out_2, prompt_out_3 ]
-                    with gr.Row(visible=False) as prompt_slct_row:
-                        prompt_selector = gr.Dropdown( [1,2,3], value=1, label="Generation prompt" )
+                    with gr.Column(visible=False) as prompt_slct_col:
+                        prompt_selector = gr.Dropdown( [1,2,3], value=1, label="Generation prompt", interactive=True )
                         genai_selector = gr.Dropdown( IMGS_GENAI, value=IMGS_GENAI[0], label="Model for image generation" )
+                        if SIMULATE_GEN:
+                            img_selector = gr.Dropdown( FAKE_OPTS, FAKE_OPTS[0], label="Test image" )
                         gen_img_btn = gr.Button( "Generate" )
 
         # Image gen show area
@@ -134,7 +158,10 @@ if __name__=="__main__":
         # ------ Bindings ------
         dropdown_devices.select( lambda x: cuda_select(devs, x), inputs=dropdown_devices, outputs=dropdown_devices )
         get_prompt_btn.click( process_kw, inputs=kw_in, 
-                             outputs = prompt_outs + [prompt_slct_row, image_row, device_row] )
-        gen_img_btn.click( generate_img, inputs=[prompt_selector, genai_selector], outputs=[ img_1, metrics_1 ] )
+                             outputs = prompt_outs + [prompt_slct_col, image_row, device_row] )
+        if not SIMULATE_GEN:
+            gen_img_btn.click( generate_img, inputs=[prompt_selector, genai_selector, llm_selector], outputs=[ img_1, metrics_1 ] )
+        else:
+            gen_img_btn.click( simulate_generation, inputs=[img_selector, genai_selector, llm_selector], outputs=[ img_1, metrics_1 ] )
 
     demo.launch( share=True )
